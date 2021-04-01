@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Illya"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Icon="IllyaIcon.ico"
+        Title="Illya" Height="450" Width="800">
     <Grid>
 
     </Grid>

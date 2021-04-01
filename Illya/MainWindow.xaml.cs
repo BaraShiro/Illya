@@ -30,11 +30,37 @@ namespace Illya
     /// </summary>
     public partial class MainWindow : Window
     {
+        private NotifyIcon notifyIcon;
+        private System.Windows.Forms.ContextMenuStrip notifyIconContextMenu;
+
+        
         public MainWindow()
         {
             InitializeComponent();
+            
+            notifyIcon = new NotifyIcon();
+            notifyIcon.Icon = System.Drawing.Icon.FromHandle(Illya.Resources.IllyaIcon.Handle);
+            notifyIcon.Visible = true;
+            notifyIcon.Text = "Illya";
 
-            Icon = Imaging.CreateBitmapSourceFromHIcon(Illya.Resources.IllyaIcon.Handle, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            notifyIconContextMenu = new ContextMenuStrip();
+
+            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = "Illya v0.1.0", Enabled = false};
+            
+            ToolStripMenuItem exitMenuItem = new ToolStripMenuItem {Text = "E&xit"};
+            exitMenuItem.Click += ContextMenuExit;
+
+            notifyIconContextMenu.Items.Add(nameMenuItem);
+            notifyIconContextMenu.Items.Add(exitMenuItem);
+            notifyIcon.ContextMenuStrip = notifyIconContextMenu;
+
+
+        }
+        
+        private void ContextMenuExit(object Sender, EventArgs e)
+        {
+            notifyIcon.Visible = false;
+            Close();
         }
     }
 }
