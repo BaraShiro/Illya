@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:Illya"
         mc:Ignorable="d"
         Icon="IllyaIcon.ico"
-        Title="Illya" Height="450" Width="800">
+        Title="Illya" Height="450" Width="800"
+        MouseLeftButtonDown="MoveWindow">
     <Grid>
 
     </Grid>

@@ -37,11 +37,13 @@ namespace Illya
         public MainWindow()
         {
             InitializeComponent();
-            
-            notifyIcon = new NotifyIcon();
-            notifyIcon.Icon = System.Drawing.Icon.FromHandle(Illya.Resources.IllyaIcon.Handle);
-            notifyIcon.Visible = true;
-            notifyIcon.Text = "Illya";
+
+            notifyIcon = new NotifyIcon
+            {
+                Icon = System.Drawing.Icon.FromHandle(Illya.Resources.IllyaIcon.Handle),
+                Visible = true,
+                Text = "Illya"
+            };
 
             notifyIconContextMenu = new ContextMenuStrip();
 
@@ -53,14 +55,23 @@ namespace Illya
             notifyIconContextMenu.Items.Add(nameMenuItem);
             notifyIconContextMenu.Items.Add(exitMenuItem);
             notifyIcon.ContextMenuStrip = notifyIconContextMenu;
-
-
         }
         
-        private void ContextMenuExit(object Sender, EventArgs e)
+        /// <summary>
+        /// EventHandler for clicking the Exit menu item in the notify icons context menu.
+        /// </summary>
+        private void ContextMenuExit(object sender, EventArgs e)
         {
             notifyIcon.Visible = false;
             Close();
+        }
+        
+        /// <summary>
+        /// EventHandler for clicking left clicking to drag the main window.
+        /// </summary>
+        private void MoveWindow(object sender, MouseButtonEventArgs e)
+        {
+            DragMove();
         }
     }
 }
