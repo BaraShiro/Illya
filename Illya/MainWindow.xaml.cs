@@ -1,12 +1,13 @@
 ﻿/*
     File:       MainWindow.xaml.cs
-    Version:    0.1.0
+    Version:    0.2.0
     Author:     Robert Rosborg
  
  */
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -47,9 +48,9 @@ namespace Illya
 
             notifyIconContextMenu = new ContextMenuStrip();
 
-            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = "Illya v0.1.0", Enabled = false};
+            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = "Illya v0.2.0", Enabled = false};
             
-            ToolStripMenuItem exitMenuItem = new ToolStripMenuItem {Text = "E&xit"};
+            ToolStripMenuItem exitMenuItem = new ToolStripMenuItem {Text = "Exit"};
             exitMenuItem.Click += ContextMenuExit;
 
             notifyIconContextMenu.Items.Add(nameMenuItem);
@@ -62,7 +63,6 @@ namespace Illya
         /// </summary>
         private void ContextMenuExit(object sender, EventArgs e)
         {
-            notifyIcon.Visible = false;
             Close();
         }
         
@@ -72,6 +72,15 @@ namespace Illya
         private void MoveWindow(object sender, MouseButtonEventArgs e)
         {
             DragMove();
+        }
+
+        /// <summary>
+        /// EventHandler for closing the main window.
+        /// </summary>
+        private void MainWindowOnClosing(object sender, CancelEventArgs e)
+        {
+            notifyIcon.Visible = false;
+            notifyIcon.Dispose();
         }
     }
 }

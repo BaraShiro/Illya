@@ -6,9 +6,30 @@
         xmlns:local="clr-namespace:Illya"
         mc:Ignorable="d"
         Icon="IllyaIcon.ico"
-        Title="Illya" Height="450" Width="800"
-        MouseLeftButtonDown="MoveWindow">
-    <Grid>
+        Title="Illya" Height="150" Width="780"
+        MouseLeftButtonDown="MoveWindow"
+        Closing="MainWindowOnClosing"
+        ResizeMode="NoResize" Topmost="True" ShowInTaskbar="False" WindowStyle="None"
+        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+        Background="Black" Foreground="White" BorderBrush="Gray" 
+        Left="0" Top="0" BorderThickness="1">
+    
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock x:Name="VideoNameTextBlock" Grid.Column="0" Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Center" TextWrapping="Wrap" Text="Video Name"/>
+        
+        <ProgressBar x:Name="PlaytimeProgressBar" Grid.Column="0" Grid.Row="1" Value="50" Height="Auto" Width="Auto" BorderThickness="0" Background="Black" Foreground="ForestGreen"/>
+        <TextBlock x:Name="PlaytimeTextBlock" Grid.Column="0" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Text="Duration" Panel.ZIndex="1"/>
+        
+        <TextBlock x:Name="TimeTextBlock" Grid.Column="1" Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top" TextWrapping="Wrap" Text="12:34" FontSize="48"/>
 
     </Grid>
 </Window>
