@@ -1,6 +1,6 @@
 ﻿/*
     File:       MainWindow.xaml.cs
-    Version:    0.3.1
+    Version:    0.4.0
     Author:     Robert Rosborg
  
  */
@@ -35,7 +35,8 @@ namespace Illya
         TopLeft,
         TopRight,
         BottomLeft,
-        BottomRight
+        BottomRight,
+        Custom
     }
     
     /// <summary>
@@ -90,6 +91,7 @@ namespace Illya
         private NotifyIcon _notifyIcon;
         private Screen _currentScreen;
         private Corner _currentCorner;
+        private (double x, double y, Screen screen) _customPosition;
 
         
         public MainWindow()
@@ -106,6 +108,7 @@ namespace Illya
             //TODO: Read from saved settings
             _currentScreen = Screen.PrimaryScreen;
             _currentCorner = Corner.None;
+            _customPosition = (0, 0, _currentScreen);
             // TODO: always on top settings should be saved and loaded
             
             UpdateWindowPosition();
@@ -121,7 +124,7 @@ namespace Illya
             ContextMenuStrip notifyIconContextMenu = new ContextMenuStrip();
 
             // Name and version
-            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = "Illya v0.3.1", Enabled = false};
+            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = "Illya v0.4.0", Enabled = false};
             notifyIconContextMenu.Items.Add(nameMenuItem);
             
             // Settings submenu
@@ -142,7 +145,7 @@ namespace Illya
             // Settings -> Screens
             foreach ((Screen screen, int index) in Screen.AllScreens.WithIndex())
             {
-                ToolStripMenuItem menuItem = new ToolStripMenuItem {Text = $"Show on display {index}"};
+                ToolStripMenuItem menuItem = new ToolStripMenuItem {Text = $"Move to display {index}"};
                 menuItem.Click += (sender, args) => { UpdateWindowPosition(screen); };
                 settingsMenuItem.DropDownItems.Add(menuItem);
             }
@@ -152,7 +155,7 @@ namespace Illya
             // Settings -> Corners
             foreach (Corner corner in Enum.GetValues<Corner>())
             {
-                if (corner == Corner.None) continue;
+                if (corner == Corner.None || corner == Corner.Custom) continue;
                 ToolStripMenuItem menuItem = new ToolStripMenuItem
                 {
                     Text = $"Place in {Enum.GetName(corner).SpaceCamelCase().ToLower()} corner"
@@ -160,6 +163,17 @@ namespace Illya
                 menuItem.Click += (sender, args) => { UpdateWindowPosition(corner); };
                 settingsMenuItem.DropDownItems.Add(menuItem);
             }
+            
+            settingsMenuItem.DropDownItems.Add("-");
+
+            // Settings -> Custom Position
+            ToolStripMenuItem saveCustomMenuItem = new ToolStripMenuItem { Text = "Save custom position"};
+            saveCustomMenuItem.Click += ContextMenuSaveCustomPosition;
+            settingsMenuItem.DropDownItems.Add(saveCustomMenuItem);
+
+            ToolStripMenuItem loadCustomMenuItem = new ToolStripMenuItem { Text = "Move to custom position"};
+            loadCustomMenuItem.Click += ContextMenuLoadCustomPosition;
+            settingsMenuItem.DropDownItems.Add(loadCustomMenuItem);
             
             // Exit
             ToolStripMenuItem exitMenuItem = new ToolStripMenuItem {Text = "Exit"};
@@ -171,6 +185,7 @@ namespace Illya
 
         /// <summary>
         /// EventHandler for clicking the Exit menu item in the notify icons context menu.
+        /// Exits the application.
         /// </summary>
         private void ContextMenuExit(object sender, EventArgs e)
         {
@@ -179,6 +194,7 @@ namespace Illya
         
         /// <summary>
         /// EventHandler for the always on top context menu item.
+        /// Toggles MainWindow.Topmost.
         /// </summary>
         private void ContextMenuAlwaysOnTop(object sender, EventArgs e)
         {
@@ -186,17 +202,49 @@ namespace Illya
         }
         
         /// <summary>
-        /// EventHandler for clicking left clicking to drag the main window.
+        /// EventHandler for the save custom position context menu item.
+        /// Saves the current window position and screen to _customPosition.
+        /// Sets _customPosition.x to Left, _customPosition.y to Top,
+        /// and customPosition.screen to _currentScreen.
         /// </summary>
-        private void MoveWindow(object sender, MouseButtonEventArgs e)
+        private void ContextMenuSaveCustomPosition(object sender, EventArgs e)
         {
-            DragMove();
-            // TODO: Set _currentCorner to None if window moved.
-            // TODO: Set _currentScreen to new screen if moved to a new screen.
+            _customPosition = (Left, Top, _currentScreen);
         }
 
         /// <summary>
-        /// EventHandler for closing the main window.
+        /// EventHandler for the move to custom position context menu item.
+        /// Loads the window position and screen from _customPosition.
+        /// Sets _currentScreen to _customPosition.screen, _currentCorner to Corner.None,
+        /// Left to _customPosition.x, and Top _customPosition.y
+        /// </summary>
+        private void ContextMenuLoadCustomPosition(object sender, EventArgs e)
+        {
+            UpdateWindowPosition(_customPosition.screen, Corner.Custom);
+        }
+        
+        /// <summary>
+        /// EventHandler for clicking left clicking to drag the main window.
+        /// If the window position after the move is not equal to the position before the move
+        /// sets _currentCorner to Corner.None, and sets _currentScreen to the screen that contains
+        /// the largest portion of the window.
+        /// </summary>
+        private void MoveWindow(object sender, MouseButtonEventArgs e)
+        {
+            PlaytimeTextBlock.Text = "Move start";
+            (double, double) startPos = (Left, Top);
+            DragMove();
+            (double, double) stopPos = (Left, Top);
+            if (startPos != stopPos)
+            {
+                _currentCorner = Corner.Custom;
+                _currentScreen = Screen.FromRectangle(
+                    new System.Drawing.Rectangle((int)Left, (int)Top, (int)Width, (int)Height));
+            }
+        }
+
+        /// <summary>
+        /// EventHandler for closing the main window. Disposes of the notify icon.
         /// </summary>
         private void MainWindowOnClosing(object sender, CancelEventArgs e)
         {
@@ -212,6 +260,7 @@ namespace Illya
         private void UpdateWindowPosition(Screen newScreen)
         {
             _currentScreen = newScreen;
+            _currentCorner = _currentCorner == Corner.Custom ? Corner.None : _currentCorner;
             UpdateWindowPosition();
         }
         
@@ -240,17 +289,22 @@ namespace Illya
         }
         
         /// <summary>
-        /// Updates the window position to _currentCorner on _currentScreen.
+        /// If _currentCorner is TopLeft, TopRight, BottomLeft, or BottomRight sets the window position
+        /// to _currentCorner on _currentScreen,
+        /// else if _currentCorner is Custom sets the window position to _customPosition,
+        /// else sets the window position to the centre of _currentScreen. 
         /// </summary>
         private void UpdateWindowPosition()
         {
-            (Top, Left) = _currentCorner switch
+            (Left, Top) = _currentCorner switch
             {
-                Corner.TopLeft => (_currentScreen.Bounds.Top, _currentScreen.Bounds.Left),
-                Corner.TopRight => (_currentScreen.Bounds.Top, _currentScreen.Bounds.Right - Width),
-                Corner.BottomLeft => (_currentScreen.Bounds.Bottom - Height,_currentScreen.Bounds.Left),
-                Corner.BottomRight => (_currentScreen.Bounds.Bottom - Height,_currentScreen.Bounds.Right - Width),
-                _ => ((_currentScreen.Bounds.Height / 2) - (Height / 2), (_currentScreen.Bounds.Width / 2) - (Width / 2))
+                Corner.Custom => (_customPosition.x, _customPosition.y),
+                Corner.TopLeft => ( _currentScreen.Bounds.Left, _currentScreen.Bounds.Top),
+                Corner.TopRight => (_currentScreen.Bounds.Right - Width, _currentScreen.Bounds.Top),
+                Corner.BottomLeft => (_currentScreen.Bounds.Left, _currentScreen.Bounds.Bottom - Height),
+                Corner.BottomRight => (_currentScreen.Bounds.Right - Width, _currentScreen.Bounds.Bottom - Height),
+                _ => ((_currentScreen.Bounds.Right) - (_currentScreen.Bounds.Width / 2) - (Width / 2), 
+                      (_currentScreen.Bounds.Bottom) - (_currentScreen.Bounds.Height / 2)- (Height / 2))
             };
         }
     }
