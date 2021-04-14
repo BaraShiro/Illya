@@ -1,6 +1,6 @@
 ﻿/*
     File:       MainWindow.xaml.cs
-    Version:    0.4.0
+    Version:    0.5.0
     Author:     Robert Rosborg
  
  */
@@ -23,6 +23,7 @@ using System.Windows.Shapes;
 using System.Windows.Forms;
 using System.Drawing;
 using System.Windows.Interop;
+using Microsoft.Win32;
 
 namespace Illya
 {
@@ -88,10 +89,27 @@ namespace Illya
     /// </summary>
     public partial class MainWindow : Window
     {
-        private NotifyIcon _notifyIcon;
+        private const string IllyaRegistryKey = @"SOFTWARE\Illya";
+        private const string KeyValueCurrentScreenInt = "currentScreenInt";
+        private const string KeyValueCurrentCornerInt = "curentCornerInt";
+        private const string KeyValueCustomPosXDouble = "customPosXDouble";
+        private const string KeyValueCustomPosYDouble = "customPosYDouble";
+        private const string KeyValueCustomPosScreenInt = "customPosScreenInt";
+        private const string KeyValueAlwaysOnTopBool = "alwaysOnTopBool";
+
+        private const int DefaultCurrentScreenIndex = 0;
+        private const Corner DefaultCurrentCorner = Corner.None;
+        private const double DefaultCustomPosX = 0D;
+        private const double DefaultCustomPosY = 0D;
+        private const int DefaultCustomPosScreenIndex = 0;
+        private const bool DefaultAlwaysOnTop = true;
+        
+        private readonly NotifyIcon _notifyIcon;
+        
         private Screen _currentScreen;
         private Corner _currentCorner;
         private (double x, double y, Screen screen) _customPosition;
+        private bool _alwaysOnTop;
 
         
         public MainWindow()
@@ -104,12 +122,25 @@ namespace Illya
                 Visible = true,
                 Text = "Illya"
             };
-            
-            //TODO: Read from saved settings
-            _currentScreen = Screen.PrimaryScreen;
-            _currentCorner = Corner.None;
-            _customPosition = (0, 0, _currentScreen);
-            // TODO: always on top settings should be saved and loaded
+
+            try
+            {
+                // Read settings from registry, if registry key not found create new with default values.
+                ReadSettingsFromRegistry();
+            }
+            catch (Exception e)
+            {
+                // Can't access registry, using default values.
+                // TODO: print e.Message
+                VideoNameTextBlock.Text = e.Message;
+                _currentScreen = Screen.AllScreens[DefaultCurrentScreenIndex];
+                _currentCorner = DefaultCurrentCorner;
+                _customPosition = (DefaultCustomPosX, DefaultCustomPosY, 
+                                   Screen.AllScreens[DefaultCustomPosScreenIndex]);
+                _alwaysOnTop = DefaultAlwaysOnTop;
+            }
+
+            Topmost = _alwaysOnTop;
             
             UpdateWindowPosition();
 
@@ -124,7 +155,7 @@ namespace Illya
             ContextMenuStrip notifyIconContextMenu = new ContextMenuStrip();
 
             // Name and version
-            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = "Illya v0.4.0", Enabled = false};
+            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = "Illya v0.5.0", Enabled = false};
             notifyIconContextMenu.Items.Add(nameMenuItem);
             
             // Settings submenu
@@ -134,7 +165,7 @@ namespace Illya
             // Settings -> Always on top
             ToolStripMenuItem alwaysOnTop = new ToolStripMenuItem
             {
-                Text = "Always on top", Checked = Topmost, CheckOnClick = true
+                Text = "Always on top", Checked = _alwaysOnTop, CheckOnClick = true
             };
             alwaysOnTop.Click += ContextMenuAlwaysOnTop;
             settingsMenuItem.DropDownItems.Add(alwaysOnTop);
@@ -155,7 +186,7 @@ namespace Illya
             // Settings -> Corners
             foreach (Corner corner in Enum.GetValues<Corner>())
             {
-                if (corner == Corner.None || corner == Corner.Custom) continue;
+                if (corner is Corner.None or Corner.Custom) continue;
                 ToolStripMenuItem menuItem = new ToolStripMenuItem
                 {
                     Text = $"Place in {Enum.GetName(corner).SpaceCamelCase().ToLower()} corner"
@@ -198,7 +229,8 @@ namespace Illya
         /// </summary>
         private void ContextMenuAlwaysOnTop(object sender, EventArgs e)
         {
-            Topmost = !Topmost;
+            _alwaysOnTop = !_alwaysOnTop;
+            Topmost = _alwaysOnTop;
         }
         
         /// <summary>
@@ -244,10 +276,20 @@ namespace Illya
         }
 
         /// <summary>
-        /// EventHandler for closing the main window. Disposes of the notify icon.
+        /// EventHandler for closing the main window. Tries to save settings to registry, fails quietly.
+        /// Disposes of the notify icon.
         /// </summary>
         private void MainWindowOnClosing(object sender, CancelEventArgs e)
         {
+            try
+            {
+                WriteSettingsToRegistry();
+            }
+            catch
+            {
+                // ignored
+            }
+
             _notifyIcon.Visible = false;
             _notifyIcon.Dispose();
         }
@@ -306,6 +348,70 @@ namespace Illya
                 _ => ((_currentScreen.Bounds.Right) - (_currentScreen.Bounds.Width / 2) - (Width / 2), 
                       (_currentScreen.Bounds.Bottom) - (_currentScreen.Bounds.Height / 2)- (Height / 2))
             };
+        }
+
+        /// <summary>
+        /// Reads settings from registry. If registry key is not found a new key with default values will be created.
+        /// </summary>
+        private void ReadSettingsFromRegistry()
+        {
+            using RegistryKey registryKey = Registry.CurrentUser.OpenSubKey(IllyaRegistryKey) 
+                                            ?? CreateRegistryKeyWithDefaultValues();
+            
+            // TODO: check for faulty values
+            int currentScreenIndex = (int) registryKey.GetValue(KeyValueCurrentScreenInt);
+            int customPosScreenIndex = (int) registryKey.GetValue(KeyValueCustomPosScreenInt);
+            _currentScreen = Screen.AllScreens[currentScreenIndex];
+            _currentCorner = (Corner) registryKey.GetValue(KeyValueCurrentCornerInt);
+            _customPosition = 
+                (double.Parse(registryKey.GetValue(KeyValueCustomPosXDouble).ToString()), 
+                 double.Parse(registryKey.GetValue(KeyValueCustomPosYDouble).ToString()),
+                 Screen.AllScreens[customPosScreenIndex]);
+            _alwaysOnTop = bool.Parse(registryKey.GetValue(KeyValueAlwaysOnTopBool).ToString());
+            
+            registryKey.Close();
+        }
+
+        /// <summary>
+        /// Creates a new settings subkey and sets all values to the default values.
+        /// </summary>
+        /// <returns>A new subkey with write access, with default values.</returns>
+        /// <exception cref="NullReferenceException">CreateSubKey returned null without throwing an exception.</exception>
+        private RegistryKey CreateRegistryKeyWithDefaultValues()
+        {
+            RegistryKey registryKey = Registry.CurrentUser.CreateSubKey(IllyaRegistryKey);
+
+            if (registryKey == null) throw new NullReferenceException();
+
+            registryKey.SetValue(KeyValueCurrentScreenInt, DefaultCurrentScreenIndex);
+            registryKey.SetValue(KeyValueCurrentCornerInt, (int)DefaultCurrentCorner);
+            registryKey.SetValue(KeyValueCustomPosXDouble, DefaultCustomPosX);
+            registryKey.SetValue(KeyValueCustomPosYDouble, DefaultCustomPosY);
+            registryKey.SetValue(KeyValueCustomPosScreenInt, DefaultCustomPosScreenIndex);
+            registryKey.SetValue(KeyValueAlwaysOnTopBool, DefaultAlwaysOnTop);
+            
+            return registryKey;
+        }
+
+        /// <summary>
+        /// Write settings to the registry. If registry key is not found a new key with default values will be created.
+        /// </summary>
+        private void WriteSettingsToRegistry()
+        {
+            using RegistryKey registryKey = Registry.CurrentUser.OpenSubKey(IllyaRegistryKey, true) ??
+                                            CreateRegistryKeyWithDefaultValues();
+            
+            int currentScreen = Array.IndexOf(Screen.AllScreens, _currentScreen);
+            int customScreen = Array.IndexOf(Screen.AllScreens, _customPosition.screen);
+
+            registryKey.SetValue(KeyValueCurrentScreenInt, currentScreen < 0 ? 0 : currentScreen);
+            registryKey.SetValue(KeyValueCurrentCornerInt, (int) _currentCorner);
+            registryKey.SetValue(KeyValueCustomPosXDouble, _customPosition.x);
+            registryKey.SetValue(KeyValueCustomPosYDouble, _customPosition.y);
+            registryKey.SetValue(KeyValueCustomPosScreenInt, customScreen < 0 ? 0 : customScreen);
+            registryKey.SetValue(KeyValueAlwaysOnTopBool, _alwaysOnTop);
+                
+            registryKey.Close();
         }
     }
 }
