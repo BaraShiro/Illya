@@ -1,6 +1,6 @@
 ﻿/*
     File:       MainWindow.xaml.cs
-    Version:    0.5.0
+    Version:    0.5.1
     Author:     Robert Rosborg
  
  */
@@ -22,6 +22,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Interop;
 using Microsoft.Win32;
 
@@ -103,6 +104,9 @@ namespace Illya
         private const double DefaultCustomPosY = 0D;
         private const int DefaultCustomPosScreenIndex = 0;
         private const bool DefaultAlwaysOnTop = true;
+
+        private readonly string _version = "";
+        private readonly string _name = "Illya";
         
         private readonly NotifyIcon _notifyIcon;
         
@@ -115,12 +119,20 @@ namespace Illya
         public MainWindow()
         {
             InitializeComponent();
+            
+            Assembly assembly = Assembly.GetEntryAssembly();
+            if (assembly != null)
+            {
+                _version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                               ?.InformationalVersion ?? _version;
+                _name = assembly.GetCustomAttribute<AssemblyProductAttribute>()?.Product ?? _name;
+            }
 
             _notifyIcon = new NotifyIcon
             {
                 Icon = System.Drawing.Icon.FromHandle(Illya.Resources.IllyaIcon.Handle),
                 Visible = true,
-                Text = "Illya"
+                Text = _name
             };
 
             try
@@ -131,7 +143,7 @@ namespace Illya
             catch (Exception e)
             {
                 // Can't access registry, using default values.
-                // TODO: print e.Message
+                // TODO: Show popup
                 VideoNameTextBlock.Text = e.Message;
                 _currentScreen = Screen.AllScreens[DefaultCurrentScreenIndex];
                 _currentCorner = DefaultCurrentCorner;
@@ -155,7 +167,7 @@ namespace Illya
             ContextMenuStrip notifyIconContextMenu = new ContextMenuStrip();
 
             // Name and version
-            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = "Illya v0.5.0", Enabled = false};
+            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = $"{_name} {_version}", Enabled = false};
             notifyIconContextMenu.Items.Add(nameMenuItem);
             
             // Settings submenu
