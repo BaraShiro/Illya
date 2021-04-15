@@ -7,7 +7,7 @@
         <UseWindowsForms>true</UseWindowsForms>
         <ApplicationIcon>IllyaIcon.ico</ApplicationIcon>
         <Company>LavenderTwintails</Company>
-        <Version>0.5.1</Version>
+        <Version>0.5.2</Version>
         <Copyright>Copyleft</Copyright>
     </PropertyGroup>
 

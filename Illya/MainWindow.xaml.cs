@@ -1,6 +1,6 @@
 ﻿/*
     File:       MainWindow.xaml.cs
-    Version:    0.5.1
+    Version:    0.5.2
     Author:     Robert Rosborg
  
  */
@@ -364,22 +364,53 @@ namespace Illya
 
         /// <summary>
         /// Reads settings from registry. If registry key is not found a new key with default values will be created.
+        /// If a settings value is unreadable or invalid the default value is used.
         /// </summary>
         private void ReadSettingsFromRegistry()
         {
             using RegistryKey registryKey = Registry.CurrentUser.OpenSubKey(IllyaRegistryKey) 
                                             ?? CreateRegistryKeyWithDefaultValues();
+
+            try
+            {
+                int currentScreenIndex = (int) registryKey.GetValue(KeyValueCurrentScreenInt);
+                _currentScreen = Screen.AllScreens[currentScreenIndex];
+            }
+            catch
+            {
+                _currentScreen = Screen.AllScreens[DefaultCurrentScreenIndex];
+            }
+
+            try
+            {
+                _currentCorner = (Corner) registryKey.GetValue(KeyValueCurrentCornerInt);
+                _currentCorner = Enum.IsDefined(typeof(Corner), _currentCorner) ? _currentCorner : DefaultCurrentCorner;
+            }
+            catch
+            {
+                _currentCorner = DefaultCurrentCorner;
+            }
             
-            // TODO: check for faulty values
-            int currentScreenIndex = (int) registryKey.GetValue(KeyValueCurrentScreenInt);
-            int customPosScreenIndex = (int) registryKey.GetValue(KeyValueCustomPosScreenInt);
-            _currentScreen = Screen.AllScreens[currentScreenIndex];
-            _currentCorner = (Corner) registryKey.GetValue(KeyValueCurrentCornerInt);
-            _customPosition = 
-                (double.Parse(registryKey.GetValue(KeyValueCustomPosXDouble).ToString()), 
-                 double.Parse(registryKey.GetValue(KeyValueCustomPosYDouble).ToString()),
-                 Screen.AllScreens[customPosScreenIndex]);
-            _alwaysOnTop = bool.Parse(registryKey.GetValue(KeyValueAlwaysOnTopBool).ToString());
+            try
+            {
+                int customPosScreenIndex = (int) registryKey.GetValue(KeyValueCustomPosScreenInt);
+                double x = double.Parse(registryKey.GetValue(KeyValueCustomPosXDouble).ToString());
+                double y = double.Parse(registryKey.GetValue(KeyValueCustomPosYDouble).ToString());
+                _customPosition = (x, y, Screen.AllScreens[customPosScreenIndex]);
+            }
+            catch
+            {
+                _customPosition = (DefaultCustomPosX, DefaultCustomPosY, Screen.AllScreens[DefaultCustomPosScreenIndex]);
+            }
+
+            try
+            {
+                _alwaysOnTop = bool.Parse(registryKey.GetValue(KeyValueAlwaysOnTopBool).ToString());
+            }
+            catch
+            {
+                _alwaysOnTop = DefaultAlwaysOnTop;
+            }
             
             registryKey.Close();
         }
