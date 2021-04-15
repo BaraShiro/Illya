@@ -29,15 +29,22 @@ using Microsoft.Win32;
 namespace Illya
 {
     /// <summary>
-    /// An enum representing the four corners of the screen.
+    /// Represents a position on the screen,
+    /// either one of the four corners of the screen or a position that is not in a corner.
     /// </summary>
     internal enum Corner
     {
+        /// <summary>Represents a default value that is not a position on a screen.</summary>
         None,
+        /// <summary>Represents the top left corner of a screen.</summary>
         TopLeft,
+        /// <summary>Represents the top right corner of a screen.</summary>
         TopRight,
+        /// <summary>Represents the bottom left corner of a screen.</summary>
         BottomLeft,
+        /// <summary>Represents the bottom right corner of a screen.</summary>
         BottomRight,
+        /// <summary>Represents a position on a screen other than one of the four corners.</summary>
         Custom
     }
     
@@ -48,21 +55,21 @@ namespace Illya
     {
         /// <summary>
         /// Extension for iterating over a collection with indices.
-        /// https://stackoverflow.com/questions/43021/how-do-you-get-the-index-of-the-current-iteration-of-a-foreach-loop#comment93800836_39997157
         /// </summary>
         /// <param name="self">The collection to iterate over.</param>
-        /// <typeparam name="T">The type of the objects contained in the collection.</typeparam>
-        /// <returns>If self is not null, an IEnumerable with tuples that contain the elements from self as its
-        /// first element, and the elements index as its second. Otherwise a new empty list of type (T, int).</returns>
+        /// <typeparam name="T">The type of the objects contained in <paramref name="self"/>.</typeparam>
+        /// <returns>An <see cref="IEnumerable{T}">IEnumerable</see> containing the elements from <paramref name="self"/>
+        /// paired with their indices, or a new empty list if <paramref name="self"/> is null.</returns>
+        /// <remarks><a href="https://stackoverflow.com/questions/43021/how-do-you-get-the-index-of-the-current-iteration-of-a-foreach-loop#comment93800836_39997157">Copied from stackoverflow</a></remarks>
         public static IEnumerable<(T item, int index)> WithIndex<T>(this IEnumerable<T> self) => 
             self?.Select((item, index) => (item, index)) ?? new List<(T, int)>();
         
         /// <summary>
-        /// Extension for strings to put spaces between camel cased words.
-        /// https://stackoverflow.com/a/155486/9852711
+        /// Extension for strings to put spaces between CamelCased words.
         /// </summary>
         /// <param name="input">The string to process.</param>
-        /// <returns>A new string with spaces inserted between camel cased words.</returns>
+        /// <returns>A new string containing <paramref name="input"/> with spaces inserted between CamelCased words.</returns>
+        /// <remarks><a href="https://stackoverflow.com/a/155486/9852711">Copied from stackoverflow.</a></remarks>
         public static string SpaceCamelCase(this String input)
         {
             return new string(Enumerable.Concat(
@@ -71,6 +78,14 @@ namespace Illya
             ).ToArray());
         }
         
+        /// <summary>
+        /// A method for inserting spaces before capital letters in a collection of chars.
+        /// </summary>
+        /// <param name="input">An <see cref="IEnumerable{T}">IEnumerable</see>
+        /// containing the collection to process.</param>
+        /// <returns>An <see cref="IEnumerable{T}">IEnumerable</see> containing the characters in input
+        /// with spaces inserted before capital letters.</returns>
+        /// <remarks><a href="https://stackoverflow.com/a/155486/9852711">Copied from stackoverflow.</a></remarks>
         private static IEnumerable<char> InsertSpacesBeforeCaps(IEnumerable<char> input)
         {
             foreach (char c in input)
@@ -90,32 +105,56 @@ namespace Illya
     /// </summary>
     public partial class MainWindow : Window
     {
+        /// <summary>The path to the registry key to store settings in.</summary>
         private const string IllyaRegistryKey = @"SOFTWARE\Illya";
+        /// <summary>The name of the name/value pair storing the current screen setting.</summary>
         private const string KeyValueCurrentScreenInt = "currentScreenInt";
+        /// <summary>The name of the name/value pair storing the current corner setting.</summary>
         private const string KeyValueCurrentCornerInt = "curentCornerInt";
+        /// <summary>The name of the name/value pair storing the x component of the custom position setting.</summary>
         private const string KeyValueCustomPosXDouble = "customPosXDouble";
+        /// <summary>The name of the name/value pair storing the y component of the custom position setting.</summary>
         private const string KeyValueCustomPosYDouble = "customPosYDouble";
+        /// <summary>The name of the name/value pair storing the screen component of the custom position setting.</summary>
         private const string KeyValueCustomPosScreenInt = "customPosScreenInt";
+        /// <summary>The name of the name/value pair storing the always on top setting.</summary>
         private const string KeyValueAlwaysOnTopBool = "alwaysOnTopBool";
 
+        /// <summary>The default value of the current screen setting.</summary>
         private const int DefaultCurrentScreenIndex = 0;
+        /// <summary>The default value of the current corner setting.</summary>
         private const Corner DefaultCurrentCorner = Corner.None;
+        /// <summary>The default value of the x component of the custom position setting.</summary>
         private const double DefaultCustomPosX = 0D;
+        /// <summary>The default value of the y component of the custom position setting.</summary>
         private const double DefaultCustomPosY = 0D;
+        /// <summary>The default value of the screen component of the custom position setting.</summary>
         private const int DefaultCustomPosScreenIndex = 0;
+        /// <summary>The default value of the always on top setting.</summary>
         private const bool DefaultAlwaysOnTop = true;
-
+        
+        /// <summary>The version number of the application.</summary>
         private readonly string _version = "";
+        /// <summary>The name of the application.</summary>
         private readonly string _name = "Illya";
         
+        /// <summary>The applications notify icon.</summary>
         private readonly NotifyIcon _notifyIcon;
         
+        /// <summary>The screen the main window is currently on.</summary>
         private Screen _currentScreen;
+        /// <summary>The corner the main window is currently in.</summary>
         private Corner _currentCorner;
+        /// <summary>A position that is not in a corner of a screen.</summary>
         private (double x, double y, Screen screen) _customPosition;
+        /// <summary>Indicating if the main window appears in the topmost z-order.</summary>
         private bool _alwaysOnTop;
-
         
+        /// <summary>
+        /// The constructor initialises the main window, gets the name and version from the assembly,
+        /// creates the notify icon, loads the settings from the registry, sets the position of the window,
+        /// and creates a context menu for the notify icon.
+        /// </summary>
         public MainWindow()
         {
             InitializeComponent();
@@ -137,7 +176,7 @@ namespace Illya
 
             try
             {
-                // Read settings from registry, if registry key not found create new with default values.
+                // Read settings from registry, if registry key is not found create a new with default settings values.
                 ReadSettingsFromRegistry();
             }
             catch (Exception e)
@@ -227,18 +266,22 @@ namespace Illya
         }
 
         /// <summary>
-        /// EventHandler for clicking the Exit menu item in the notify icons context menu.
-        /// Exits the application.
+        /// <see cref="EventHandler">EventHandler</see> for clicking the Exit menu item in the notify icons context menu.
+        /// <para>Exits the application by closing the main window.</para>
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">An object that contains no event data.</param>
         private void ContextMenuExit(object sender, EventArgs e)
         {
             Close();
         }
         
         /// <summary>
-        /// EventHandler for the always on top context menu item.
-        /// Toggles MainWindow.Topmost.
+        /// <see cref="EventHandler">EventHandler</see> for the always on top context menu item.
+        /// <para>Toggles <see cref="MainWindow.Topmost"/>.</para>
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">An object that contains no event data.</param>
         private void ContextMenuAlwaysOnTop(object sender, EventArgs e)
         {
             _alwaysOnTop = !_alwaysOnTop;
@@ -246,33 +289,35 @@ namespace Illya
         }
         
         /// <summary>
-        /// EventHandler for the save custom position context menu item.
-        /// Saves the current window position and screen to _customPosition.
-        /// Sets _customPosition.x to Left, _customPosition.y to Top,
-        /// and customPosition.screen to _currentScreen.
+        /// <see cref="EventHandler">EventHandler</see> for the save custom position context menu item.
+        /// <para>Saves the current window position and screen to <see cref="_customPosition"/>.</para>
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">An object that contains no event data.</param>
         private void ContextMenuSaveCustomPosition(object sender, EventArgs e)
         {
             _customPosition = (Left, Top, _currentScreen);
         }
 
         /// <summary>
-        /// EventHandler for the move to custom position context menu item.
-        /// Loads the window position and screen from _customPosition.
-        /// Sets _currentScreen to _customPosition.screen, _currentCorner to Corner.None,
-        /// Left to _customPosition.x, and Top _customPosition.y
+        /// <see cref="EventHandler">EventHandler</see> for the move to custom position context menu item.
+        /// <para>Loads the window position and screen from <see cref="_customPosition"/>.</para>
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">An object that contains no event data.</param>
         private void ContextMenuLoadCustomPosition(object sender, EventArgs e)
         {
             UpdateWindowPosition(_customPosition.screen, Corner.Custom);
         }
         
         /// <summary>
-        /// EventHandler for clicking left clicking to drag the main window.
-        /// If the window position after the move is not equal to the position before the move
-        /// sets _currentCorner to Corner.None, and sets _currentScreen to the screen that contains
-        /// the largest portion of the window.
+        /// <see cref="MouseButtonEventHandler">EventHandler</see> for left clicking to drag the main window.
+        /// <para>If the window position after the move is not equal to the position before the move,
+        /// sets <see cref="_currentCorner"/> to <see cref="Corner.Custom"/>,
+        /// and sets <see cref="_currentScreen"/> to the screen that contains the largest portion of the window.</para>
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">An object that contains data for mouse button events.</param>
         private void MoveWindow(object sender, MouseButtonEventArgs e)
         {
             PlaytimeTextBlock.Text = "Move start";
@@ -288,9 +333,12 @@ namespace Illya
         }
 
         /// <summary>
-        /// EventHandler for closing the main window. Tries to save settings to registry, fails quietly.
-        /// Disposes of the notify icon.
+        /// <see cref="CancelEventHandler">EventHandler</see> for closing the main window.
+        /// <para>Tries to save settings to registry, and disposes of the notify icon.</para>
         /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">An object that contains data for a cancelable event.</param>
+        /// <remarks>If settings cannot be saved to registry it will fail quietly.</remarks>
         private void MainWindowOnClosing(object sender, CancelEventArgs e)
         {
             try
@@ -307,8 +355,7 @@ namespace Illya
         }
 
         /// <summary>
-        /// Sets _currentScreen to newScreen.
-        /// Updates the window position to _currentCorner on _currentScreen.
+        /// Updates the window position to <see cref="_currentCorner"/> on <paramref name="newScreen"/>.
         /// </summary>
         /// <param name="newScreen">The new screen to place the window on.</param>
         private void UpdateWindowPosition(Screen newScreen)
@@ -319,8 +366,7 @@ namespace Illya
         }
         
         /// <summary>
-        /// Sets _currentCorner to newCorner.
-        /// Updates the window position to _currentCorner on _currentScreen.
+        /// Updates the window position to <paramref name="newCorner"/> on <see cref="_currentScreen"/>.
         /// </summary>
         /// <param name="newCorner">The new corner to place the window in.</param>
         private void UpdateWindowPosition(Corner newCorner)
@@ -330,8 +376,7 @@ namespace Illya
         }
         
         /// <summary>
-        /// Sets _currentScreen to newScreen and _currentCorner to newCorner.
-        /// Updates the window position to _currentCorner on _currentScreen.
+        /// Updates the window position to <paramref name="newCorner"/> on <paramref name="newScreen"/>.
         /// </summary>
         /// <param name="newScreen">The new screen to place the window on.</param>
         /// <param name="newCorner">The new corner to place the window in.</param>
@@ -343,10 +388,17 @@ namespace Illya
         }
         
         /// <summary>
-        /// If _currentCorner is TopLeft, TopRight, BottomLeft, or BottomRight sets the window position
-        /// to _currentCorner on _currentScreen,
-        /// else if _currentCorner is Custom sets the window position to _customPosition,
-        /// else sets the window position to the centre of _currentScreen. 
+        /// Updates the window position.
+        /// <para>
+        ///     If <see cref="_currentCorner"/> is <see cref="Corner.TopLeft"/>, <see cref="Corner.TopRight"/>,
+        ///     <see cref="Corner.BottomLeft"/>, or <see cref="Corner.BottomRight"/> sets the window position to
+        ///     <see cref="_currentCorner"/> on <see cref="_currentScreen"/>.
+        /// </para>
+        /// <para>
+        ///     Else if <see cref="_currentCorner"/> is <see cref="Corner.Custom"/> sets the window position
+        ///     to <see cref="_customPosition"/>.
+        /// </para>
+        /// <para>Else sets the window position to the centre of <see cref="_currentScreen"/>.</para>
         /// </summary>
         private void UpdateWindowPosition()
         {
@@ -363,8 +415,9 @@ namespace Illya
         }
 
         /// <summary>
-        /// Reads settings from registry. If registry key is not found a new key with default values will be created.
-        /// If a settings value is unreadable or invalid the default value is used.
+        /// Reads settings from registry.
+        /// <para>If registry key is not found a new key with default values will be created.
+        /// If a settings value is unreadable or invalid the default value is used.</para>
         /// </summary>
         private void ReadSettingsFromRegistry()
         {
@@ -416,10 +469,11 @@ namespace Illya
         }
 
         /// <summary>
-        /// Creates a new settings subkey and sets all values to the default values.
+        /// Creates a new settings subkey and sets all settings to the default values.
         /// </summary>
-        /// <returns>A new subkey with write access, with default values.</returns>
-        /// <exception cref="NullReferenceException">CreateSubKey returned null without throwing an exception.</exception>
+        /// <returns>A new subkey with write access, with settings set to default values.</returns>
+        /// <exception cref="NullReferenceException"><see cref="RegistryKey.CreateSubKey(String)">CreateSubKey</see>
+        /// returned null without throwing an exception.</exception>
         private RegistryKey CreateRegistryKeyWithDefaultValues()
         {
             RegistryKey registryKey = Registry.CurrentUser.CreateSubKey(IllyaRegistryKey);
@@ -437,7 +491,8 @@ namespace Illya
         }
 
         /// <summary>
-        /// Write settings to the registry. If registry key is not found a new key with default values will be created.
+        /// Write settings to the registry.
+        /// <para>If registry key is not found, a new key with settings at default values will be created.</para>
         /// </summary>
         private void WriteSettingsToRegistry()
         {
