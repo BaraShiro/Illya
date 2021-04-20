@@ -1,6 +1,6 @@
 ﻿/*
     File:       MainWindow.xaml.cs
-    Version:    0.5.3
+    Version:    0.6.0
     Author:     Robert Rosborg
  
  */
@@ -11,13 +11,11 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Input;
 using System.Windows.Forms;
 using System.Reflection;
 using Microsoft.Win32;
+using static Illya.RegistryReader;
 
 namespace Illya
 {
@@ -101,17 +99,17 @@ namespace Illya
         /// <summary>The path to the registry key to store settings in.</summary>
         private const string IllyaRegistryKey = @"SOFTWARE\Illya";
         /// <summary>The name of the name/value pair storing the current screen setting.</summary>
-        private const string KeyValueCurrentScreenInt = "currentScreenInt";
+        private const string KeyNameCurrentScreenInt = "currentScreenInt";
         /// <summary>The name of the name/value pair storing the current corner setting.</summary>
-        private const string KeyValueCurrentCornerInt = "curentCornerInt";
+        private const string KeyNameCurrentCornerInt = "curentCornerInt";
         /// <summary>The name of the name/value pair storing the x component of the custom position setting.</summary>
-        private const string KeyValueCustomPosXDouble = "customPosXDouble";
+        private const string KeyNameCustomPosXDouble = "customPosXDouble";
         /// <summary>The name of the name/value pair storing the y component of the custom position setting.</summary>
-        private const string KeyValueCustomPosYDouble = "customPosYDouble";
+        private const string KeyNameCustomPosYDouble = "customPosYDouble";
         /// <summary>The name of the name/value pair storing the screen component of the custom position setting.</summary>
-        private const string KeyValueCustomPosScreenInt = "customPosScreenInt";
+        private const string KeyNameCustomPosScreenInt = "customPosScreenInt";
         /// <summary>The name of the name/value pair storing the always on top setting.</summary>
-        private const string KeyValueAlwaysOnTopBool = "alwaysOnTopBool";
+        private const string KeyNameAlwaysOnTopBool = "alwaysOnTopBool";
 
         /// <summary>The default value of the current screen setting.</summary>
         private const int DefaultCurrentScreenIndex = 0;
@@ -172,7 +170,7 @@ namespace Illya
                 // Read settings from registry, if registry key is not found create a new with default settings values.
                 ReadSettingsFromRegistry();
             }
-            catch (Exception e)
+            catch (RegistryErrorException e)
             {
                 // Can't access registry, using default values.
                 // TODO: Show popup
@@ -412,73 +410,67 @@ namespace Illya
         /// <para>If registry key is not found a new key with default values will be created.
         /// If a settings value is unreadable or invalid the default value is used.</para>
         /// </summary>
+        /// <exception cref="RegistryErrorException">Unable to open or create new subkey.</exception>
         private void ReadSettingsFromRegistry()
         {
-            using RegistryKey registryKey = Registry.CurrentUser.OpenSubKey(IllyaRegistryKey) 
-                                            ?? CreateRegistryKeyWithDefaultValues();
-
+            RegistryKey registryKey;
             try
             {
-                int currentScreenIndex = (int) registryKey.GetValue(KeyValueCurrentScreenInt);
-                _currentScreen = Screen.AllScreens[currentScreenIndex];
+                registryKey = Registry.CurrentUser.OpenSubKey(IllyaRegistryKey) ?? CreateRegistryKeyWithDefaultValues();
             }
-            catch
+            catch (Exception e) when 
+            (e is System.Security.SecurityException 
+                or ObjectDisposedException 
+                or System.IO.IOException 
+                or UnauthorizedAccessException
+                or RegistryErrorException)
             {
-                _currentScreen = Screen.AllScreens[DefaultCurrentScreenIndex];
+                throw new RegistryErrorException("An exception was thrown while accessing the registry.", e);
             }
 
-            try
-            {
-                _currentCorner = (Corner) registryKey.GetValue(KeyValueCurrentCornerInt);
-                _currentCorner = Enum.IsDefined(typeof(Corner), _currentCorner) ? _currentCorner : DefaultCurrentCorner;
-            }
-            catch
-            {
-                _currentCorner = DefaultCurrentCorner;
-            }
+            // Current screen
+            int currentScreenIndex = ReadIntFromRegistry(registryKey, KeyNameCurrentScreenInt, DefaultCurrentScreenIndex);
+            _currentScreen = currentScreenIndex >= 0 && currentScreenIndex < Screen.AllScreens.Length
+                ? Screen.AllScreens[currentScreenIndex]
+                : Screen.AllScreens[DefaultCurrentScreenIndex];
             
-            try
-            {
-                int customPosScreenIndex = (int) registryKey.GetValue(KeyValueCustomPosScreenInt);
-                double x = double.Parse(registryKey.GetValue(KeyValueCustomPosXDouble).ToString());
-                double y = double.Parse(registryKey.GetValue(KeyValueCustomPosYDouble).ToString());
-                _customPosition = (x, y, Screen.AllScreens[customPosScreenIndex]);
-            }
-            catch
-            {
-                _customPosition = (DefaultCustomPosX, DefaultCustomPosY, Screen.AllScreens[DefaultCustomPosScreenIndex]);
-            }
-
-            try
-            {
-                _alwaysOnTop = bool.Parse(registryKey.GetValue(KeyValueAlwaysOnTopBool).ToString());
-            }
-            catch
-            {
-                _alwaysOnTop = DefaultAlwaysOnTop;
-            }
+            // Current corner
+            Corner currentCorner = (Corner) ReadIntFromRegistry(registryKey, KeyNameCurrentCornerInt, (int)DefaultCurrentCorner);
+            _currentCorner = Enum.IsDefined(typeof(Corner), currentCorner) ? currentCorner : DefaultCurrentCorner;
+            
+            // Custom position
+            int customPosScreenIndex = ReadIntFromRegistry(registryKey, KeyNameCustomPosScreenInt, DefaultCustomPosScreenIndex);
+            double x = ReadDoubleFromRegistry(registryKey, KeyNameCustomPosXDouble, DefaultCustomPosX);
+            double y = ReadDoubleFromRegistry(registryKey, KeyNameCustomPosYDouble, DefaultCustomPosY);
+            _customPosition = customPosScreenIndex >= 0 && customPosScreenIndex < Screen.AllScreens.Length
+                ? _customPosition = (x, y, Screen.AllScreens[customPosScreenIndex])
+                : _customPosition = (DefaultCustomPosX, DefaultCustomPosY,
+                    Screen.AllScreens[DefaultCustomPosScreenIndex]);
+            
+            // Always on top
+            _alwaysOnTop = ReadBoolFromRegistry(registryKey, KeyNameAlwaysOnTopBool, DefaultAlwaysOnTop);
             
             registryKey.Close();
+            registryKey.Dispose();
         }
 
         /// <summary>
         /// Creates a new settings subkey and sets all settings to the default values.
         /// </summary>
         /// <returns>A new subkey with write access, with settings set to default values.</returns>
-        /// <exception cref="NullReferenceException"><see cref="RegistryKey.CreateSubKey(String)">CreateSubKey</see>
-        /// returned null without throwing an exception.</exception>
+        /// <exception cref="RegistryErrorException"><see cref="RegistryKey.CreateSubKey(string)">CreateSubKey</see>
+        /// returned null.</exception>
         private RegistryKey CreateRegistryKeyWithDefaultValues()
         {
-            RegistryKey registryKey = Registry.CurrentUser.CreateSubKey(IllyaRegistryKey);
-
-            if (registryKey == null) throw new NullReferenceException();
-
-            registryKey.SetValue(KeyValueCurrentScreenInt, DefaultCurrentScreenIndex);
-            registryKey.SetValue(KeyValueCurrentCornerInt, (int)DefaultCurrentCorner);
-            registryKey.SetValue(KeyValueCustomPosXDouble, DefaultCustomPosX);
-            registryKey.SetValue(KeyValueCustomPosYDouble, DefaultCustomPosY);
-            registryKey.SetValue(KeyValueCustomPosScreenInt, DefaultCustomPosScreenIndex);
-            registryKey.SetValue(KeyValueAlwaysOnTopBool, DefaultAlwaysOnTop);
+            RegistryKey registryKey = Registry.CurrentUser.CreateSubKey(IllyaRegistryKey) ??
+                                      throw new RegistryErrorException("Failed to create new subkey.");
+            
+            WriteValueToRegistry(registryKey, KeyNameCurrentScreenInt, DefaultCurrentScreenIndex);
+            WriteValueToRegistry(registryKey, KeyNameCurrentCornerInt, (int)DefaultCurrentCorner);
+            WriteValueToRegistry(registryKey, KeyNameCustomPosXDouble, DefaultCustomPosX);
+            WriteValueToRegistry(registryKey, KeyNameCustomPosYDouble, DefaultCustomPosY);
+            WriteValueToRegistry(registryKey, KeyNameCustomPosScreenInt, DefaultCustomPosScreenIndex);
+            WriteValueToRegistry(registryKey, KeyNameAlwaysOnTopBool, DefaultAlwaysOnTop);
             
             return registryKey;
         }
@@ -487,22 +479,40 @@ namespace Illya
         /// Write settings to the registry.
         /// <para>If registry key is not found, a new key with settings at default values will be created.</para>
         /// </summary>
+        /// <exception cref="ArgumentNullException"><see cref="RegistryKey.OpenSubKey(string, bool)">OpenSubKey</see>
+        /// was called with a null argument.</exception>
+        /// <exception cref="RegistryErrorException">Unable to open subkey, write to subkey,
+        /// or create new subkey.</exception>
         private void WriteSettingsToRegistry()
         {
-            using RegistryKey registryKey = Registry.CurrentUser.OpenSubKey(IllyaRegistryKey, true) ??
-                                            CreateRegistryKeyWithDefaultValues();
-            
+            RegistryKey registryKey;
+            try
+            {
+                registryKey = Registry.CurrentUser.OpenSubKey(IllyaRegistryKey, true) ??
+                              CreateRegistryKeyWithDefaultValues();
+            }
+            catch (Exception e) when 
+            (e is System.Security.SecurityException 
+                or ObjectDisposedException 
+                or System.IO.IOException 
+                or UnauthorizedAccessException
+                or RegistryErrorException)
+            {
+                throw new RegistryErrorException("An exception was thrown while accessing the registry.", e);
+            }
+
             int currentScreen = Array.IndexOf(Screen.AllScreens, _currentScreen);
             int customScreen = Array.IndexOf(Screen.AllScreens, _customPosition.screen);
 
-            registryKey.SetValue(KeyValueCurrentScreenInt, currentScreen < 0 ? 0 : currentScreen);
-            registryKey.SetValue(KeyValueCurrentCornerInt, (int) _currentCorner);
-            registryKey.SetValue(KeyValueCustomPosXDouble, _customPosition.x);
-            registryKey.SetValue(KeyValueCustomPosYDouble, _customPosition.y);
-            registryKey.SetValue(KeyValueCustomPosScreenInt, customScreen < 0 ? 0 : customScreen);
-            registryKey.SetValue(KeyValueAlwaysOnTopBool, _alwaysOnTop);
-                
+            WriteValueToRegistry(registryKey, KeyNameCurrentScreenInt, currentScreen < 0 ? 0 : currentScreen);
+            WriteValueToRegistry(registryKey, KeyNameCurrentCornerInt, (int) _currentCorner);
+            WriteValueToRegistry(registryKey, KeyNameCustomPosXDouble, _customPosition.x);
+            WriteValueToRegistry(registryKey, KeyNameCustomPosYDouble, _customPosition.y);
+            WriteValueToRegistry(registryKey, KeyNameCustomPosScreenInt, customScreen < 0 ? 0 : customScreen);
+            WriteValueToRegistry(registryKey, KeyNameAlwaysOnTopBool, _alwaysOnTop);
+            
             registryKey.Close();
+            registryKey.Dispose();
         }
     }
 }
