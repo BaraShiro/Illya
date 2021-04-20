@@ -1,29 +1,22 @@
 ﻿/*
     File:       MainWindow.xaml.cs
-    Version:    0.5.2
+    Version:    0.5.3
     Author:     Robert Rosborg
  
  */
 
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Windows.Forms;
-using System.Drawing;
 using System.Reflection;
-using System.Windows.Interop;
 using Microsoft.Win32;
 
 namespace Illya
@@ -61,7 +54,7 @@ namespace Illya
         /// <returns>An <see cref="IEnumerable{T}">IEnumerable</see> containing the elements from <paramref name="self"/>
         /// paired with their indices, or a new empty list if <paramref name="self"/> is null.</returns>
         /// <remarks><a href="https://stackoverflow.com/questions/43021/how-do-you-get-the-index-of-the-current-iteration-of-a-foreach-loop#comment93800836_39997157">Copied from stackoverflow</a></remarks>
-        public static IEnumerable<(T item, int index)> WithIndex<T>(this IEnumerable<T> self) => 
+        public static IEnumerable<(T item, int index)> WithIndex<T>([AllowNull]this IEnumerable<T> self) => 
             self?.Select((item, index) => (item, index)) ?? new List<(T, int)>();
         
         /// <summary>
@@ -72,7 +65,7 @@ namespace Illya
         /// <remarks><a href="https://stackoverflow.com/a/155486/9852711">Copied from stackoverflow.</a></remarks>
         public static string SpaceCamelCase(this String input)
         {
-            return new string(Enumerable.Concat(
+            return new(Enumerable.Concat(
                 input.Take(1), // No space before initial cap
                 InsertSpacesBeforeCaps(input.Skip(1))
             ).ToArray());
@@ -103,7 +96,7 @@ namespace Illya
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class MainWindow
     {
         /// <summary>The path to the registry key to store settings in.</summary>
         private const string IllyaRegistryKey = @"SOFTWARE\Illya";
@@ -142,13 +135,13 @@ namespace Illya
         private readonly NotifyIcon _notifyIcon;
         
         /// <summary>The screen the main window is currently on.</summary>
-        private Screen _currentScreen;
+        private Screen _currentScreen = Screen.PrimaryScreen;
         /// <summary>The corner the main window is currently in.</summary>
-        private Corner _currentCorner;
+        private Corner _currentCorner = Corner.None;
         /// <summary>A position that is not in a corner of a screen.</summary>
-        private (double x, double y, Screen screen) _customPosition;
+        private (double x, double y, Screen screen) _customPosition = (0D, 0D, Screen.PrimaryScreen);
         /// <summary>Indicating if the main window appears in the topmost z-order.</summary>
-        private bool _alwaysOnTop;
+        private bool _alwaysOnTop = true;
         
         /// <summary>
         /// The constructor initialises the main window, gets the name and version from the assembly,
@@ -159,7 +152,7 @@ namespace Illya
         {
             InitializeComponent();
             
-            Assembly assembly = Assembly.GetEntryAssembly();
+            Assembly? assembly = Assembly.GetEntryAssembly();
             if (assembly != null)
             {
                 _version = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()
@@ -203,18 +196,18 @@ namespace Illya
         /// </summary>
         private void CreateNotifyIconContextMenu()
         {
-            ContextMenuStrip notifyIconContextMenu = new ContextMenuStrip();
+            ContextMenuStrip notifyIconContextMenu = new();
 
             // Name and version
-            ToolStripMenuItem nameMenuItem = new ToolStripMenuItem {Text = $"{_name} {_version}", Enabled = false};
+            ToolStripMenuItem nameMenuItem = new() {Text = $"{_name} {_version}", Enabled = false};
             notifyIconContextMenu.Items.Add(nameMenuItem);
             
             // Settings submenu
-            ToolStripMenuItem settingsMenuItem = new ToolStripMenuItem {Text = "Settings"};
+            ToolStripMenuItem settingsMenuItem = new() {Text = "Settings"};
             notifyIconContextMenu.Items.Add(settingsMenuItem);
 
             // Settings -> Always on top
-            ToolStripMenuItem alwaysOnTop = new ToolStripMenuItem
+            ToolStripMenuItem alwaysOnTop = new()
             {
                 Text = "Always on top", Checked = _alwaysOnTop, CheckOnClick = true
             };
@@ -227,7 +220,7 @@ namespace Illya
             // Settings -> Screens
             foreach ((Screen screen, int index) in Screen.AllScreens.WithIndex())
             {
-                ToolStripMenuItem menuItem = new ToolStripMenuItem {Text = $"Move to display {index}"};
+                ToolStripMenuItem menuItem = new() {Text = $"Move to display {index}"};
                 menuItem.Click += (sender, args) => { UpdateWindowPosition(screen); };
                 settingsMenuItem.DropDownItems.Add(menuItem);
             }
@@ -238,9 +231,9 @@ namespace Illya
             foreach (Corner corner in Enum.GetValues<Corner>())
             {
                 if (corner is Corner.None or Corner.Custom) continue;
-                ToolStripMenuItem menuItem = new ToolStripMenuItem
+                ToolStripMenuItem menuItem = new()
                 {
-                    Text = $"Place in {Enum.GetName(corner).SpaceCamelCase().ToLower()} corner"
+                    Text = $"Place in {Enum.GetName(corner)?.SpaceCamelCase().ToLower()} corner"
                 };
                 menuItem.Click += (sender, args) => { UpdateWindowPosition(corner); };
                 settingsMenuItem.DropDownItems.Add(menuItem);
@@ -249,16 +242,16 @@ namespace Illya
             settingsMenuItem.DropDownItems.Add("-");
 
             // Settings -> Custom Position
-            ToolStripMenuItem saveCustomMenuItem = new ToolStripMenuItem { Text = "Save custom position"};
+            ToolStripMenuItem saveCustomMenuItem = new() { Text = "Save custom position"};
             saveCustomMenuItem.Click += ContextMenuSaveCustomPosition;
             settingsMenuItem.DropDownItems.Add(saveCustomMenuItem);
 
-            ToolStripMenuItem loadCustomMenuItem = new ToolStripMenuItem { Text = "Move to custom position"};
+            ToolStripMenuItem loadCustomMenuItem = new() { Text = "Move to custom position"};
             loadCustomMenuItem.Click += ContextMenuLoadCustomPosition;
             settingsMenuItem.DropDownItems.Add(loadCustomMenuItem);
             
             // Exit
-            ToolStripMenuItem exitMenuItem = new ToolStripMenuItem {Text = "Exit"};
+            ToolStripMenuItem exitMenuItem = new() {Text = "Exit"};
             exitMenuItem.Click += ContextMenuExit;
             notifyIconContextMenu.Items.Add(exitMenuItem);
             
@@ -271,7 +264,7 @@ namespace Illya
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">An object that contains no event data.</param>
-        private void ContextMenuExit(object sender, EventArgs e)
+        private void ContextMenuExit(object? sender, EventArgs e)
         {
             Close();
         }
@@ -282,7 +275,7 @@ namespace Illya
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">An object that contains no event data.</param>
-        private void ContextMenuAlwaysOnTop(object sender, EventArgs e)
+        private void ContextMenuAlwaysOnTop(object? sender, EventArgs e)
         {
             _alwaysOnTop = !_alwaysOnTop;
             Topmost = _alwaysOnTop;
@@ -294,7 +287,7 @@ namespace Illya
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">An object that contains no event data.</param>
-        private void ContextMenuSaveCustomPosition(object sender, EventArgs e)
+        private void ContextMenuSaveCustomPosition(object? sender, EventArgs e)
         {
             _customPosition = (Left, Top, _currentScreen);
         }
@@ -305,7 +298,7 @@ namespace Illya
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">An object that contains no event data.</param>
-        private void ContextMenuLoadCustomPosition(object sender, EventArgs e)
+        private void ContextMenuLoadCustomPosition(object? sender, EventArgs e)
         {
             UpdateWindowPosition(_customPosition.screen, Corner.Custom);
         }
@@ -318,7 +311,7 @@ namespace Illya
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">An object that contains data for mouse button events.</param>
-        private void MoveWindow(object sender, MouseButtonEventArgs e)
+        private void MoveWindow(object? sender, MouseButtonEventArgs e)
         {
             PlaytimeTextBlock.Text = "Move start";
             (double, double) startPos = (Left, Top);
@@ -339,7 +332,7 @@ namespace Illya
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">An object that contains data for a cancelable event.</param>
         /// <remarks>If settings cannot be saved to registry it will fail quietly.</remarks>
-        private void MainWindowOnClosing(object sender, CancelEventArgs e)
+        private void MainWindowOnClosing(object? sender, CancelEventArgs e)
         {
             try
             {
