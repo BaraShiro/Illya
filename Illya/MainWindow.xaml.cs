@@ -1,6 +1,6 @@
 ﻿/*
     File:       MainWindow.xaml.cs
-    Version:    0.6.0
+    Version:    0.7.0
     Author:     Robert Rosborg
  
  */
@@ -14,6 +14,7 @@ using System.Linq;
 using System.Windows.Input;
 using System.Windows.Forms;
 using System.Reflection;
+using System.Threading.Tasks;
 using Microsoft.Win32;
 using static Illya.RegistryReader;
 
@@ -89,6 +90,32 @@ namespace Illya
                 yield return c;
             }
         }
+        
+        /// <summary>
+        /// Extension for retrieving a substring from between two other substrings.
+        /// </summary>
+        /// <param name="input">The string to search.</param>
+        /// <param name="start">The first substring.</param>
+        /// <param name="stop">The second substring.</param>
+        /// <returns>The substring between <paramref name="start"/> and <paramref name="stop"/> in
+        /// <paramref name="input"/>, or the empty string if no such substring is found.</returns>
+        /// <remarks>If <paramref name="input"/>, <paramref name="start"/>, or <paramref name="stop"/> is null
+        /// the empty string will be used instead.</remarks>
+        public static string GetBetween(this string? input, string? start, string? stop)
+        {
+            input ??= string.Empty;
+            start ??= string.Empty;
+            stop ??= string.Empty;
+            
+            if (input.Contains(start) && input.Contains(stop)) // TODO: Optimize
+            {
+                int startIndex = input.IndexOf(start, 0, StringComparison.Ordinal) + start.Length;
+                int stopIndex = input.IndexOf(stop, startIndex, StringComparison.Ordinal);
+                return input.Substring(startIndex, stopIndex - startIndex);
+            }
+
+            return string.Empty;
+        }
     }
     
     /// <summary>
@@ -140,6 +167,18 @@ namespace Illya
         private (double x, double y, Screen screen) _customPosition = (0D, 0D, Screen.PrimaryScreen);
         /// <summary>Indicating if the main window appears in the topmost z-order.</summary>
         private bool _alwaysOnTop = true;
+
+        /// <summary>The web address to MPC-HC's web interface.</summary>
+        private string webInterfaceAddress = "http://127.0.0.1";
+        /// <summary>The port MPC-HC's web interface is listening on.</summary>
+        private int port = 13579;
+
+        /// <summary>The <see cref="Updater"/> responsible for updating the UI with the now playing
+        /// variables from MPC-HC.</summary>
+        private Updater _updater;
+        /// <summary>The <see cref="Task"/> that runs the loop for updating the UI with the now playing
+        /// variables from MPC-HC.</summary>
+        private Task _updateTask;
         
         /// <summary>
         /// The constructor initialises the main window, gets the name and version from the assembly,
@@ -187,6 +226,11 @@ namespace Illya
             UpdateWindowPosition();
 
             CreateNotifyIconContextMenu();
+
+            _updater = new Updater(TimeTextBlock, VideoNameTextBlock, PlaytimeTextBlock, PlaytimeProgressBar,
+                new Uri($"{webInterfaceAddress}:{port}/"), TimeSpan.FromSeconds(0.5));
+            // TODO: Set address and port from loaded settings
+            _updateTask = Task.Run(_updater.StartUpdateLoop);
         }
 
         /// <summary>
@@ -311,7 +355,6 @@ namespace Illya
         /// <param name="e">An object that contains data for mouse button events.</param>
         private void MoveWindow(object? sender, MouseButtonEventArgs e)
         {
-            PlaytimeTextBlock.Text = "Move start";
             (double, double) startPos = (Left, Top);
             DragMove();
             (double, double) stopPos = (Left, Top);

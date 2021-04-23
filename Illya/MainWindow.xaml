@@ -26,7 +26,7 @@
 
         <TextBlock x:Name="VideoNameTextBlock" Grid.Column="0" Grid.Row="0" HorizontalAlignment="Left" VerticalAlignment="Center" TextWrapping="Wrap" Text="Video Name"/>
         
-        <ProgressBar x:Name="PlaytimeProgressBar" Grid.Column="0" Grid.Row="1" Value="50" Height="Auto" Width="Auto" BorderThickness="0" Background="Black" Foreground="ForestGreen"/>
+        <ProgressBar x:Name="PlaytimeProgressBar" Grid.Column="0" Grid.Row="1" Value="50" Height="Auto" Width="Auto" BorderThickness="1" Background="Transparent" Foreground="ForestGreen" Visibility="Hidden"/>
         <TextBlock x:Name="PlaytimeTextBlock" Grid.Column="0" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" TextWrapping="Wrap" Text="Duration" Panel.ZIndex="1"/>
         
         <TextBlock x:Name="TimeTextBlock" Grid.Column="1" Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Top" TextWrapping="Wrap" Text="12:34" FontSize="48"/>
